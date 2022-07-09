@@ -20,7 +20,8 @@
   <%= label f, :views %>
   <%= number_input f, :views %>
   <%= error_tag f, :views %>
-
+  
+  <%= category_select f, @changeset %>
   <div>
     <%= submit "Save" %>
   </div>

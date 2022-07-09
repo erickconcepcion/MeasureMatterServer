@@ -27,7 +27,10 @@ defmodule MeasureMatterServerWeb.ProductController do
   end
 
   def show(conn, %{"id" => id}) do
-    product = Catalog.get_product!(id)
+    product = id
+    |> Catalog.get_product!()
+    |> Catalog.increment_product_views()
+
     render(conn, "show.html", product: product)
   end
 

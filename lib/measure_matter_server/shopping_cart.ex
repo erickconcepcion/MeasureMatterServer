@@ -72,6 +72,9 @@ defmodule MeasureMatterServer.ShoppingCart do
   end
 
   defp reload_cart(%Cart{} = cart), do: get_cart_by_user_uuid(cart.user_uuid)
+
+
+  alias MeasureMatterServer.ShoppingCart.CartItem
   @doc """
   Updates a cart.
 
@@ -85,9 +88,21 @@ defmodule MeasureMatterServer.ShoppingCart do
 
   """
   def update_cart(%Cart{} = cart, attrs) do
-    cart
-    |> Cart.changeset(attrs)
-    |> Repo.update()
+    changeset =
+      cart
+      |> Cart.changeset(attrs)
+      |> Ecto.Changeset.cast_assoc(:items, with: &CartItem.changeset/2)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.update(:cart, changeset)
+    |> Ecto.Multi.delete_all(:discarded_items, fn %{cart: cart} ->
+      from(i in CartItem, where: i.cart_id == ^cart.id and i.quantity == 0)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{cart: cart}} -> {:ok, cart}
+      {:error, :cart, changeset, _changes_so_far} -> {:error, changeset}
+    end
   end
 
   @doc """
@@ -119,7 +134,6 @@ defmodule MeasureMatterServer.ShoppingCart do
     Cart.changeset(cart, attrs)
   end
 
-  alias MeasureMatterServer.ShoppingCart.CartItem
 
   @doc """
   Returns the list of cart_items.
@@ -253,6 +267,11 @@ defmodule MeasureMatterServer.ShoppingCart do
       |> total_item_price()
       |> Decimal.add(acc)
     end)
+  end
+
+  def prune_cart_items(%Cart{} = cart) do
+    {_, _} = Repo.delete_all(from(i in CartItem, where: i.cart_id == ^cart.id))
+    {:ok, reload_cart(cart)}
   end
 
 end
